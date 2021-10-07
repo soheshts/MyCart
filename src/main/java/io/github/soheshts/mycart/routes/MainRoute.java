@@ -12,9 +12,8 @@ public class MainRoute extends RouteBuilder {
     public void configure() throws Exception {
         restConfiguration().component("servlet").host("localhost").port(8080)
                 .bindingMode(RestBindingMode.auto);
-        rest("/hello")
-                .get().route().log("Hello there")
-                .transform().constant("Hello there").endRest()
-                .post().route().transform().constant("POST Received");
+        rest()
+              .get("/health").route().log("Hello there").setBody(constant("Service is UP")).endRest()
+              .post().route().transform().constant("POST Received");
     }
 }
