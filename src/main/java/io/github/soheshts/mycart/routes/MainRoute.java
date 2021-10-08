@@ -8,6 +8,8 @@ import org.apache.camel.LoggingLevel;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.model.rest.RestBindingMode;
 import org.apache.camel.support.SimpleRegistry;
+import org.bson.BsonString;
+import org.bson.types.ObjectId;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -24,6 +26,11 @@ public class MainRoute extends RouteBuilder {
                 .bindingMode(RestBindingMode.auto);
         rest()
                 .get("/health").route().log("Hello there").setBody(constant("Service is UP")).endRest()
-                .post("/findall").to("mongodb:mongobean?database=example&collection=names&operation=findAll");
+                .post("/findall").to("mongodb:mongobean?database=MyCart&collection=item&operation=findAll")
+                .get("/findById").route().setBody(header("id")).convertBodyTo(String.class)
+                .to("mongodb:mongobean?database=MyCart&collection=item&operation=findById")
+                .setBody(simple("${body}"));
+
+
     }
 }
