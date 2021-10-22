@@ -1,24 +1,30 @@
 package io.github.soheshts.mycart.routes;
 
-import com.mongodb.WriteConcern;
+import com.mongodb.BasicDBObject;
 import com.mongodb.client.MongoClients;
 import io.github.soheshts.mycart.models.Item;
 import io.github.soheshts.mycart.models.ItemPrice;
 import io.github.soheshts.mycart.models.StockDetails;
-import org.apache.camel.*;
+import org.apache.camel.CamelContext;
+import org.apache.camel.Exchange;
+import org.apache.camel.Message;
+import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
-import org.apache.camel.model.dataformat.JsonLibrary;
 import org.apache.camel.model.rest.RestBindingMode;
-import org.bson.BsonDocument;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
+
+import static org.apache.camel.Exchange.LOOP_INDEX;
 
 @ApplicationScoped
 public class MainRoute extends RouteBuilder {
     @Inject
     CamelContext context;
+    Logger logger = LoggerFactory.getLogger(MainRoute.class);
 
     @Override
     public void configure() throws Exception {
@@ -47,7 +53,7 @@ public class MainRoute extends RouteBuilder {
                         item.setItemName(document.getString("itemName"));
                         item.setCategoryName(document.getString("categoryId"));
                         item.setSpecialProduct(document.getBoolean("specialProduct"));
-                        Document itemPriceDocument = document.get("itemPrice",Document.class);
+                        Document itemPriceDocument = document.get("itemPrice", Document.class);
                         ItemPrice itemPrice = new ItemPrice();
                         itemPrice.setBasePrice(itemPriceDocument.getInteger("basePrice"));
                         itemPrice.setSellingPrice(itemPriceDocument.getInteger("sellingPrice"));
@@ -61,9 +67,29 @@ public class MainRoute extends RouteBuilder {
                         exchange.setMessage(message);
                         System.out.println(item.toString());
                     }
-                })
-                /*.setBody(simple("${body}"))*/.endRest()
-                //.setBody(unma).endRest()
+                }).endRest()
+                .get("/items/{category_id}").route().process(new Processor() {
+                    @Override
+                    public void process(Exchange exchange) throws Exception {
+                        String catId = exchange.getIn().getHeader("category_id").toString();
+                        String special = null;
+                        String searchString = null;
+                        boolean includeSpecial = false;
+                        if (exchange.getIn().getHeader("includeSpecial") != null) {
+                            special = exchange.getIn().getHeader("includeSpecial").toString();
+                            if (special.equalsIgnoreCase("true")) {
+                                includeSpecial = true;
+                            }
+                            searchString = "{ \"categoryId\":\"" + catId + "\",\"specialProduct\":" + includeSpecial + "}";
+                        } else {
+                            searchString = "{ \"categoryId\":\"" + catId + "\"}";
+                        }
+                        logger.info("searchString : " + searchString);
+                        exchange.getIn().setBody(BasicDBObject.parse(searchString));
+
+                    }
+                }).log("**** TEST")
+                .to("mongodb:mongobean?database=MyCart&collection=item&operation=findAll").endRest()
 
                 .post("/insert").route().to("mongodb:mongobean?database=MyCart&collection=item&operation=insert")
                 .setBody(simple("${body}")).endRest();
