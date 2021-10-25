@@ -1,7 +1,9 @@
 package io.github.soheshts.mycart.routes;
 
 import com.mongodb.BasicDBObject;
+import com.mongodb.BasicDBObjectBuilder;
 import com.mongodb.client.MongoClients;
+import com.mongodb.client.model.Projections;
 import io.github.soheshts.mycart.models.Item;
 import io.github.soheshts.mycart.models.ItemPrice;
 import io.github.soheshts.mycart.models.StockDetails;
@@ -10,6 +12,7 @@ import org.apache.camel.Exchange;
 import org.apache.camel.Message;
 import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.mongodb.MongoDbConstants;
 import org.apache.camel.model.rest.RestBindingMode;
 import org.bson.Document;
 import org.slf4j.Logger;
@@ -88,7 +91,13 @@ public class MainRoute extends RouteBuilder {
                 }).log("**** TEST")
                 .to("mongodb:mongobean?database=MyCart&collection=item&operation=findAll").endRest()
 
-                .post("/insert").route().setProperty("ORIGINAL", body()).setBody(simple("${body[_id]}"))
+                .post("/insert").route().setProperty("ORIGINAL", body()).setBody(simple("${body[_id]}")).process(new Processor() {
+                    @Override
+                    public void process(Exchange exchange) throws Exception {
+                        exchange.getIn().setHeader(MongoDbConstants.FIELDS_PROJECTION, Projections.exclude("review","lastUpdateDate"));
+
+                    }
+                })
                 .to("mongodb:mongobean?database=MyCart&collection=item&operation=findById")
                 .choice()
                 .when(simple("${body[_id]} != null"))
