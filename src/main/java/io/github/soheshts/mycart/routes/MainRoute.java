@@ -18,8 +18,6 @@ import org.slf4j.LoggerFactory;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
-import static org.apache.camel.Exchange.LOOP_INDEX;
-
 @ApplicationScoped
 public class MainRoute extends RouteBuilder {
     @Inject
@@ -41,7 +39,6 @@ public class MainRoute extends RouteBuilder {
                 .get("/findall").route().to("mongodb:mongobean?database=MyCart&collection=item&operation=findAll").endRest()
 
                 .get("/findById").route().setBody(header("id")).convertBodyTo(String.class)
-                .log("test log")
                 .to("mongodb:mongobean?database=MyCart&collection=item&operation=findById").process(new Processor() {
                     @Override
                     public void process(Exchange exchange) throws Exception {
@@ -91,8 +88,15 @@ public class MainRoute extends RouteBuilder {
                 }).log("**** TEST")
                 .to("mongodb:mongobean?database=MyCart&collection=item&operation=findAll").endRest()
 
-                .post("/insert").route().to("mongodb:mongobean?database=MyCart&collection=item&operation=insert")
-                .setBody(simple("${body}")).endRest();
+                .post("/insert").route().setProperty("ORIGINAL", body()).setBody(simple("${body[_id]}"))
+                .to("mongodb:mongobean?database=MyCart&collection=item&operation=findById")
+                .choice()
+                .when(simple("${body[_id]} != null"))
+                .log("response : " + body()).setBody(body())
+                .otherwise()
+                .setBody(exchange -> exchange.getProperty("ORIGINAL"))
+                .to("mongodb:mongobean?database=MyCart&collection=item&operation=insert")
+                .setBody(simple("${body}")).endChoice().endRest();
 
     }
 }
