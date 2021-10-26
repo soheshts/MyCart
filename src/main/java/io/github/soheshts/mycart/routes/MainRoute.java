@@ -38,7 +38,7 @@ public class MainRoute extends RouteBuilder {
     public void configure() throws Exception {
         ActiveMQConnectionFactory factory = new ActiveMQConnectionFactory("tcp://localhost:61616");
         context.getRegistry().bind("mongobean", MongoClients.create("mongodb://localhost:27017"));
-        context.getRegistry().bind("amqfactory",factory);
+        context.getRegistry().bind("amqfactory", factory);
         JacksonDataFormat format = new JacksonDataFormat(Items.class);
         format.setAllowUnmarshallType(true);
         context.getGlobalOptions().put("CamelJacksonEnableTypeConverter", "true");
@@ -106,17 +106,7 @@ public class MainRoute extends RouteBuilder {
                 }).log("**** TEST")
                 .to("mongodb:mongobean?database=MyCart&collection=item&operation=findAll").endRest()
                 /*REQUIREMENT 3*/
-                .post("/insert").route().setProperty("ORIGINAL", body()).setBody(simple("${body[_id]}")).process(exchange -> {
-                    exchange.getIn().setHeader(MongoDbConstants.FIELDS_PROJECTION, Projections.exclude("review", "lastUpdateDate"));
-                })
-                .to("mongodb:mongobean?database=MyCart&collection=item&operation=findById")
-                .choice()
-                .when(simple("${body[_id]} != null"))
-                .log("response : " + body()).setBody(body())
-                .otherwise()
-                .setBody(exchange -> exchange.getProperty("ORIGINAL"))
-                .to("mongodb:mongobean?database=MyCart&collection=item&operation=insert")
-                .setBody(simple("${body}")).endChoice().endRest()
+                .post("/insert").route().to("direct:insertRoute").endRest()
                 .post("/updateInventory").route().process(exchange -> {
                     Items items = new Items();
                     items = exchange.getMessage().getBody(Items.class);
@@ -127,7 +117,19 @@ public class MainRoute extends RouteBuilder {
                 .log("JSON : ${body}").endRest()
                 .post("/amq").route().to("activemq:queue:mycart?connectionFactory=amqfactory&exchangePattern=InOnly").endRest();
 
-                from("activemq:queue:mycart?connectionFactory=amqfactory").log("message received : ${body}" );
+        from("direct:insertRoute").setProperty("ORIGINAL", body()).setBody(simple("${body[_id]}")).process(exchange -> {
+                    exchange.getIn().setHeader(MongoDbConstants.FIELDS_PROJECTION, Projections.exclude("review", "lastUpdateDate"));
+                })
+                .to("mongodb:mongobean?database=MyCart&collection=item&operation=findById")
+                .choice()
+                .when(simple("${body[_id]} != null"))
+                .log("response : " + body()).setBody(body())
+                .otherwise()
+                .setBody(exchange -> exchange.getProperty("ORIGINAL"))
+                .to("mongodb:mongobean?database=MyCart&collection=item&operation=insert")
+                .setBody(simple("${body}")).endChoice();
+
+        from("activemq:queue:mycart?connectionFactory=amqfactory").log("message received : ${body}").to("direct:insertRoute");
 
     }
 }
