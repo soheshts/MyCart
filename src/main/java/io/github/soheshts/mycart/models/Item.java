@@ -1,5 +1,8 @@
 package io.github.soheshts.mycart.models;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class Item {
     private String _id;
     private String itemName;
