@@ -2,14 +2,30 @@ package io.github.soheshts.mycart.models;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlRootElement;
+import java.util.List;
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@XmlRootElement
+@XmlAccessorType(XmlAccessType.FIELD)
 public class Item {
     private String _id;
     private String itemName;
-    private String categoryName;
+    private String categoryId;
     private ItemPrice itemPrice;
     private StockDetails stockDetails;
     private Boolean specialProduct;
+    private List<Review> review;
+
+    public List<Review> getReview() {
+        return review;
+    }
+
+    public void setReview(List<Review> review) {
+        this.review = review;
+    }
 
     public String get_id() {
         return _id;
@@ -27,12 +43,12 @@ public class Item {
         this.itemName = itemName;
     }
 
-    public String getCategoryName() {
-        return categoryName;
+    public String getCategoryId() {
+        return categoryId;
     }
 
-    public void setCategoryName(String categoryName) {
-        this.categoryName = categoryName;
+    public void setCategoryId(String categoryId) {
+        this.categoryId = categoryId;
     }
 
     public ItemPrice getItemPrice() {
@@ -64,7 +80,7 @@ public class Item {
         return "Item{" +
                 "_id='" + _id + '\'' +
                 ", itemName='" + itemName + '\'' +
-                ", categoryName='" + categoryName + '\'' +
+                ", categoryName='" + categoryId + '\'' +
                 ", itemPrice=" + itemPrice +
                 ", stockDetails=" + stockDetails +
                 ", specialProduct=" + specialProduct +
