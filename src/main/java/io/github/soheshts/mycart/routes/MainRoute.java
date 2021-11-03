@@ -121,7 +121,7 @@ public class MainRoute extends RouteBuilder {
                 .log("JSON : ${body}").endRest()
                 .post("/amq").route().to("activemq:queue:mycart?connectionFactory=amqfactory&exchangePattern=InOnly").endRest();
 
-        from("direct:insertRoute").setProperty("ORIGINAL", body()).setBody(simple("${body[_id]}")).process(exchange -> {
+        from("direct:insertRoute").routeId("direct:insertRoute").setProperty("ORIGINAL", body()).setBody(simple("${body[_id]}")).process(exchange -> {
                     exchange.getIn().setHeader(MongoDbConstants.FIELDS_PROJECTION, Projections.exclude("review", "lastUpdateDate"));
                 })
                 .to("mongodb:mongobean?database=MyCart&collection=item&operation=findById")
@@ -133,15 +133,15 @@ public class MainRoute extends RouteBuilder {
                 .to("mongodb:mongobean?database=MyCart&collection=item&operation=insert")
                 .setBody(simple("${body}")).endChoice();
 
-        from("activemq:queue:mycart?connectionFactory=amqfactory").log("message received : ${body}").to("direct:insertRoute");
-        from("cron:tab?schedule=0/15 * * * * ?").setBody().constant("event")
+        //from("activemq:queue:mycart?connectionFactory=amqfactory").routeId("AMQ ROUTE").log("message received : ${body}").to("direct:insertRoute");
+        from("cron:tab?schedule=0/15 * * * * ?").routeId("CRON JOB").setBody().constant("event")
                 .to("direct:findall").process(exchange -> {
                     Item item = new Item();
                     List<Document> items = exchange.getMessage().getBody(List.class);
                     exchange.getMessage().setBody(items);
-                }).split(body()).process(new MappingProcessor()).log("Mapped: ${body}").multicast().to("direct:ItemTrendAnalyzer", "direct:ItemReviewAggregator");
-        from("direct:findall").to("mongodb:mongobean?database=MyCart&collection=item&operation=findAll").log("Findall: ${body}");
-        from("direct:ItemTrendAnalyzer").process(exchange -> {
+                }).split(body()).process(new MappingProcessor()).log("Mapped: ${body}").multicast().to("direct:StoreFrontApp","direct:ItemTrendAnalyzer", "direct:ItemReviewAggregator");
+        from("direct:findall").routeId("direct findall").to("mongodb:mongobean?database=MyCart&collection=item&operation=findAll").log("Findall: ${body}");
+        from("direct:ItemTrendAnalyzer").routeId("ItemTrendAnalyzer").process(exchange -> {
             Inventory inventory = new Inventory();
             Item item = exchange.getMessage().getBody(Item.class);
             Inventory.Category.Item item1 = new Inventory.Category.Item();
@@ -157,8 +157,9 @@ public class MainRoute extends RouteBuilder {
             inventory.getCategory().get(0).getItem().add(item1);
             exchange.getMessage().setBody(inventory);
 
-        }).marshal(jaxbDataFormat).log("Unmarshalled: ${body}").to("file:/home/soheshts/Workspace/Ferguson/sftp/ItemTrendAnalyzer");
-        from("direct:ItemReviewAggregator").process(exchange -> {
+        }).marshal(jaxbDataFormat).log("Unmarshalled: ${body}")
+                .to("sftp://ftpuser@localhost/ItemTrendAnalyzer?password=ftp123&exchangePattern=InOnly&strictHostKeyChecking=no");
+        from("direct:ItemReviewAggregator").routeId("ItemReviewAggregator").process(exchange -> {
             Reviews reviews = new Reviews();
             Item item = exchange.getMessage().getBody(Item.class);
             Reviews.Item item1 = new Reviews.Item();
@@ -176,6 +177,14 @@ public class MainRoute extends RouteBuilder {
             reviews.getItem().add(item1);
             logger.info("###OBJECT: " + new ObjectMapper().writeValueAsString(reviews));
             exchange.getMessage().setBody(reviews);
-        }).marshal(jaxbDataFormat).log("ItemReviewAggregator marshalled:  ${body}").to("file:/home/soheshts/Workspace/Ferguson/sftp/ItemReviewAggregator");
+        }).marshal(jaxbDataFormat).log("ItemReviewAggregator marshalled:  ${body}")
+                .to("sftp://ftpuser@localhost/ItemReviewAggregator?password=ftp123&exchangePattern=InOnly&strictHostKeyChecking=no");
+        from("direct:StoreFrontApp").routeId("StoreFrontApp").process(exchange -> {
+            Item item = exchange.getMessage().getBody(Item.class);
+            if (item.getReview()!= null){
+                item.setReview(null);
+            }
+            exchange.getMessage().setBody(item);
+        }).marshal().json().to("sftp://ftpuser@localhost/StoreFrontApp?password=ftp123&exchangePattern=InOnly&strictHostKeyChecking=no");
     }
 }
